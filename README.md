@@ -5,7 +5,11 @@ Expr is a very simple integer expression calculator. Its grammar is as follows:
 identifier := [A-Za-z_] [A-Za-z_0-9]*
 variable := identifier
 literal := decimal_literal | hex_literal | binary_literal | octal_literal
-binary_op := '*' | '-' | '/' | '%' | '+' | '==' | '<' ...
+binary_op := '+' | '-' | '*' | '/' | '%' |
+             '<<' | '>>' |
+             '==' | '!=' | '<' | '>' | '<=' | '>=' |
+             '&&' | '||' |
+             '&' | '|' | '^'
 unary_op := '!' | '~' | identifier
 brackets := '(' atom ')'
 unary := unary_op atom

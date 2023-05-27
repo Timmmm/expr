@@ -56,10 +56,20 @@ enum BinOp {
     Minus,
     Mul,
     Div,
+    Mod,
+    ShiftLeft,
+    ShiftRight,
     Eq,
     NotEq,
-    LogicalAnd,
+    Less,
+    LessEq,
+    Greater,
+    GreaterEq,
     BitAnd,
+    BitOr,
+    BitXor,
+    LogicalAnd,
+    LogicalOr,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -132,6 +142,29 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
             '+' => {
                 tokens.push(Token::BinOp(BinOp::Plus));
             }
+            '-' => {
+                tokens.push(Token::BinOp(BinOp::Minus));
+            }
+            '*' => {
+                tokens.push(Token::BinOp(BinOp::Mul));
+            }
+            '/' => {
+                tokens.push(Token::BinOp(BinOp::Div));
+            }
+            '%' => {
+                tokens.push(Token::BinOp(BinOp::Mod));
+            }
+            '!' => {
+                if iter.peek() == Some(&'=') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::NotEq));
+                } else {
+                    tokens.push(Token::UnOp(UnOp::Not));
+                }
+            }
+            '~' => {
+                tokens.push(Token::UnOp(UnOp::BitNot));
+            }
             '&' => {
                 if iter.peek() == Some(&'&') {
                     iter.next();
@@ -139,6 +172,56 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
                 } else {
                     tokens.push(Token::BinOp(BinOp::BitAnd));
                 }
+            }
+            '|' => {
+                if iter.peek() == Some(&'|') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::LogicalOr));
+                } else {
+                    tokens.push(Token::BinOp(BinOp::BitOr));
+                }
+            }
+            '^' => {
+                tokens.push(Token::BinOp(BinOp::BitXor));
+            }
+            '<' => {
+                if iter.peek() == Some(&'<') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::ShiftLeft));
+                } else if iter.peek() == Some(&'=') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::LessEq));
+                } else {
+                    tokens.push(Token::BinOp(BinOp::Less));
+                }
+            }
+            '>' => {
+                if iter.peek() == Some(&'>') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::ShiftRight));
+                } else if iter.peek() == Some(&'=') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::GreaterEq));
+                } else {
+                    tokens.push(Token::BinOp(BinOp::Greater));
+                }
+            }
+            '=' => {
+                if iter.peek() == Some(&'=') {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::Eq));
+                } else {
+                    return Err(ExprError::SyntaxError(format!(
+                        "unexpected character: {}",
+                        c
+                    )));
+                }
+            }
+            '(' => {
+                tokens.push(Token::LeftBracket);
+            }
+            ')' => {
+                tokens.push(Token::RightBracket);
             }
             ' ' | '\t' | '\n' => {}
             _ => {
@@ -200,6 +283,48 @@ mod test {
             ])
         );
 
-
+        // Test all operators and edge cases.
+        assert_eq!(
+            tokenise("1+2-3*4/5%6<<7>>8&9|10^11&&12||13==14!=15<16<=17>18>=19"),
+            Ok(vec![
+                Token::Literal(Val::Int(1)),
+                Token::BinOp(BinOp::Plus),
+                Token::Literal(Val::Int(2)),
+                Token::BinOp(BinOp::Minus),
+                Token::Literal(Val::Int(3)),
+                Token::BinOp(BinOp::Mul),
+                Token::Literal(Val::Int(4)),
+                Token::BinOp(BinOp::Div),
+                Token::Literal(Val::Int(5)),
+                Token::BinOp(BinOp::Mod),
+                Token::Literal(Val::Int(6)),
+                Token::BinOp(BinOp::ShiftLeft),
+                Token::Literal(Val::Int(7)),
+                Token::BinOp(BinOp::ShiftRight),
+                Token::Literal(Val::Int(8)),
+                Token::BinOp(BinOp::BitAnd),
+                Token::Literal(Val::Int(9)),
+                Token::BinOp(BinOp::BitOr),
+                Token::Literal(Val::Int(10)),
+                Token::BinOp(BinOp::BitXor),
+                Token::Literal(Val::Int(11)),
+                Token::BinOp(BinOp::LogicalAnd),
+                Token::Literal(Val::Int(12)),
+                Token::BinOp(BinOp::LogicalOr),
+                Token::Literal(Val::Int(13)),
+                Token::BinOp(BinOp::Eq),
+                Token::Literal(Val::Int(14)),
+                Token::BinOp(BinOp::NotEq),
+                Token::Literal(Val::Int(15)),
+                Token::BinOp(BinOp::Less),
+                Token::Literal(Val::Int(16)),
+                Token::BinOp(BinOp::LessEq),
+                Token::Literal(Val::Int(17)),
+                Token::BinOp(BinOp::Greater),
+                Token::Literal(Val::Int(18)),
+                Token::BinOp(BinOp::GreaterEq),
+                Token::Literal(Val::Int(19)),
+            ])
+        );
     }
 }
