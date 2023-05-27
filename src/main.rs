@@ -23,28 +23,50 @@ enum Val {
 }
 
 enum Ast {
-    Plus(Box<Ast>, Box<Ast>),
-    Minus(Box<Ast>, Box<Ast>),
-    Mul(Box<Ast>, Box<Ast>),
-    Div(Box<Ast>, Box<Ast>),
-    Eq(Box<Ast>, Box<Ast>),
-    NotEq(Box<Ast>, Box<Ast>),
-    Not(Box<Ast>),
-    BitNot(Box<Ast>),
+    BinOp(Box<Ast>, Box<Ast>, BinOp),
+    UnOp(Box<Ast>, UnOp),
+    Var(String),
+    Call(String, Box<Ast>),
     Literal(Val),
 }
 
 impl Ast {
     pub fn evaluate(&self) -> Result<Val> {
         match self {
-            Ast::Plus(a, b) => match (a.evaluate()?, b.evaluate()?) {
-                (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a.wrapping_add(b))), // TODO: Should be a separate operator like `@+`
-                _ => Err(ExprError::TypeError("+ operands must be ints".to_string())),
+            Ast::BinOp(a, b, op) => match (a.evaluate()?, b.evaluate()?) {
+                (Val::Int(a), Val::Int(b)) => {
+                    match op {
+                        BinOp::Plus => Ok(Val::Int(a + b)), // TODO: Checked add etc.
+                        BinOp::Minus => Ok(Val::Int(a - b)),
+                        BinOp::Mul => Ok(Val::Int(a * b)),
+                        BinOp::Div => Ok(Val::Int(a / b)),
+                        BinOp::Mod => Ok(Val::Int(a % b)),
+                        BinOp::ShiftLeft => Ok(Val::Int(a << b)),
+                        BinOp::ShiftRight => Ok(Val::Int(a >> b)),
+                        BinOp::Eq => Ok(Val::Bool(a == b)),
+                        BinOp::NotEq => Ok(Val::Bool(a != b)),
+                        BinOp::Less => Ok(Val::Bool(a < b)),
+                        BinOp::LessEq => Ok(Val::Bool(a <= b)),
+                        BinOp::Greater => Ok(Val::Bool(a > b)),
+                        BinOp::GreaterEq => Ok(Val::Bool(a >= b)),
+                        BinOp::BitAnd => Ok(Val::Int(a & b)),
+                        BinOp::BitOr => Ok(Val::Int(a | b)),
+                        BinOp::BitXor => Ok(Val::Int(a ^ b)),
+                        _ => Err(ExprError::TypeError("invalid binary operator for ints".to_string())),
+                    }
+                }
+                (Val::Bool(a), Val::Bool(b)) => {
+                    match op {
+                        BinOp::Eq => Ok(Val::Bool(a == b)),
+                        BinOp::NotEq => Ok(Val::Bool(a != b)),
+                        BinOp::LogicalAnd => Ok(Val::Bool(a && b)),
+                        BinOp::LogicalOr => Ok(Val::Bool(a || b)),
+                        _ => Err(ExprError::TypeError("invalid binary operator for bools".to_string())),
+                    }
+                }
+                _ => Err(ExprError::TypeError("binary operand types must match".to_string())),
             }
-            Ast::Minus(a, b) => match (a.evaluate()?, b.evaluate()?) {
-                (Val::Int(a), Val::Int(b)) => Ok(Val::Int(a.wrapping_sub(b))), // TODO: Should be a separate operator like `@-`
-                _ => Err(ExprError::TypeError("- operands must be ints".to_string())),
-            }
+
             _ => todo!()
         }
     }
@@ -71,6 +93,8 @@ enum BinOp {
     LogicalAnd,
     LogicalOr,
 }
+
+// TODO: Wrapping add/subtract (and maybe shift) using @+, @- and @<<, @>>.
 
 #[derive(PartialEq, Eq, Debug)]
 enum UnOp {
@@ -248,6 +272,11 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
     }
 
     Ok(tokens)
+}
+
+fn parse(tokens: &[Token]) -> Result<Expr> {
+    let mut iter = tokens.iter().peekable();
+
 }
 
 fn main() {
