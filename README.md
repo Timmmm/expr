@@ -24,6 +24,8 @@ Very standard with two exceptions:
 
 The only supported types are `bool` and `u64`. There is no type coersion.
 
-Operator meaning and precedence is the same as in Go (or Rust with the exception of `~`).
+All arithmetic operations are checked and cause an error on over/underflow. Shift overflows (e.g. 1 << 100) are allowed and result in 0.
+
+Operator meaning and precedence is the same as in Go.
 
 There is no undefined behaviour. Overflows wrap. Large shifts result in 0.

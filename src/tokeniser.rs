@@ -161,24 +161,6 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
                     }
                 }
             }
-            '@' => {
-                match iter.peek() {
-                    Some('+') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::WrappingAdd));
-                    }
-                    Some('-') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::WrappingSub));
-                    }
-                    _ => {
-                        return Err(ExprError::SyntaxError(format!(
-                            "unexpected character: {}",
-                            c
-                        )));
-                    }
-                }
-            }
             '(' => {
                 tokens.push(Token::LeftBracket);
             }

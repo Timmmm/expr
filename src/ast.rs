@@ -29,13 +29,11 @@ impl Ast {
                     match op {
                         BinOp::Add => Ok(Val::Int(a.checked_add(b).ok_or(ExprError::Overflow("add overflow".to_string()))?)),
                         BinOp::Sub => Ok(Val::Int(a.checked_sub(b).ok_or(ExprError::Overflow("subtract overflow".to_string()))?)),
-                        BinOp::WrappingAdd => Ok(Val::Int(a.wrapping_add(b))),
-                        BinOp::WrappingSub => Ok(Val::Int(a.wrapping_sub(b))),
-                        BinOp::Mul => Ok(Val::Int(a * b)), // TODO: Maybe just make everything wrapping...?
-                        BinOp::Div => Ok(Val::Int(a / b)),
-                        BinOp::Mod => Ok(Val::Int(a % b)),
-                        BinOp::ShiftLeft => Ok(Val::Int(a << b)),
-                        BinOp::ShiftRight => Ok(Val::Int(a >> b)),
+                        BinOp::Mul => Ok(Val::Int(a.checked_mul(b).ok_or(ExprError::Overflow("multiply overflow".to_string()))?)),
+                        BinOp::Div => Ok(Val::Int(a.checked_div(b).ok_or(ExprError::Overflow("division by zero".to_string()))?)),
+                        BinOp::Mod => Ok(Val::Int(a.checked_rem(b).ok_or(ExprError::Overflow("modulus by zero".to_string()))?)),
+                        BinOp::ShiftLeft => Ok(Val::Int(a.checked_shl(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0))),
+                        BinOp::ShiftRight => Ok(Val::Int(a.checked_shr(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0))),
                         BinOp::Eq => Ok(Val::Bool(a == b)),
                         BinOp::NotEq => Ok(Val::Bool(a != b)),
                         BinOp::Less => Ok(Val::Bool(a < b)),
@@ -84,8 +82,6 @@ impl Ast {
 pub enum BinOp {
     Add,
     Sub,
-    WrappingAdd,
-    WrappingSub,
     Mul,
     Div,
     Mod,
@@ -117,6 +113,7 @@ pub trait Precedence {
 impl Precedence for BinOp {
     fn precedence(&self) -> u8 {
         // Same as Go. https://go.dev/ref/spec#Operators
+        // Or should I use Rust? https://doc.rust-lang.org/reference/expressions.html#expression-precedence
         match self {
             BinOp::LogicalOr => 0,
             BinOp::LogicalAnd => 1,
