@@ -1,109 +1,9 @@
-// Implement custom Result type.
 
-use std::fmt;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ExprError {
-    SyntaxError(String),
-    TypeError(String),
-}
-
-impl fmt::Display for ExprError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "invalid first item to double")
-    }
-}
-
-type Result<T> = std::result::Result<T, ExprError>;
+use crate::ast::{BinOp, UnOp, Val};
+use crate::error::{ExprError, Result};
 
 #[derive(PartialEq, Eq, Debug)]
-enum Val {
-    Int(u64),
-    Bool(bool),
-}
-
-enum Ast {
-    BinOp(Box<Ast>, Box<Ast>, BinOp),
-    UnOp(Box<Ast>, UnOp),
-    Var(String),
-    Call(String, Box<Ast>),
-    Literal(Val),
-}
-
-impl Ast {
-    pub fn evaluate(&self) -> Result<Val> {
-        match self {
-            Ast::BinOp(a, b, op) => match (a.evaluate()?, b.evaluate()?) {
-                (Val::Int(a), Val::Int(b)) => {
-                    match op {
-                        BinOp::Plus => Ok(Val::Int(a + b)), // TODO: Checked add etc.
-                        BinOp::Minus => Ok(Val::Int(a - b)),
-                        BinOp::Mul => Ok(Val::Int(a * b)),
-                        BinOp::Div => Ok(Val::Int(a / b)),
-                        BinOp::Mod => Ok(Val::Int(a % b)),
-                        BinOp::ShiftLeft => Ok(Val::Int(a << b)),
-                        BinOp::ShiftRight => Ok(Val::Int(a >> b)),
-                        BinOp::Eq => Ok(Val::Bool(a == b)),
-                        BinOp::NotEq => Ok(Val::Bool(a != b)),
-                        BinOp::Less => Ok(Val::Bool(a < b)),
-                        BinOp::LessEq => Ok(Val::Bool(a <= b)),
-                        BinOp::Greater => Ok(Val::Bool(a > b)),
-                        BinOp::GreaterEq => Ok(Val::Bool(a >= b)),
-                        BinOp::BitAnd => Ok(Val::Int(a & b)),
-                        BinOp::BitOr => Ok(Val::Int(a | b)),
-                        BinOp::BitXor => Ok(Val::Int(a ^ b)),
-                        _ => Err(ExprError::TypeError("invalid binary operator for ints".to_string())),
-                    }
-                }
-                (Val::Bool(a), Val::Bool(b)) => {
-                    match op {
-                        BinOp::Eq => Ok(Val::Bool(a == b)),
-                        BinOp::NotEq => Ok(Val::Bool(a != b)),
-                        BinOp::LogicalAnd => Ok(Val::Bool(a && b)),
-                        BinOp::LogicalOr => Ok(Val::Bool(a || b)),
-                        _ => Err(ExprError::TypeError("invalid binary operator for bools".to_string())),
-                    }
-                }
-                _ => Err(ExprError::TypeError("binary operand types must match".to_string())),
-            }
-
-            _ => todo!()
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-enum BinOp {
-    Plus,
-    Minus,
-    Mul,
-    Div,
-    Mod,
-    ShiftLeft,
-    ShiftRight,
-    Eq,
-    NotEq,
-    Less,
-    LessEq,
-    Greater,
-    GreaterEq,
-    BitAnd,
-    BitOr,
-    BitXor,
-    LogicalAnd,
-    LogicalOr,
-}
-
-// TODO: Wrapping add/subtract (and maybe shift) using @+, @- and @<<, @>>.
-
-#[derive(PartialEq, Eq, Debug)]
-enum UnOp {
-    Not,
-    BitNot,
-}
-
-#[derive(PartialEq, Eq, Debug)]
-enum Token {
+pub enum Token {
     Literal(Val),
     BinOp(BinOp),
     UnOp(UnOp),
@@ -119,7 +19,7 @@ enum State {
     Identifier,
 }
 
-fn tokenise(input: &str) -> Result<Vec<Token>> {
+pub fn tokenise(input: &str) -> Result<Vec<Token>> {
     // Split on whitespace and word boundaries.
 
     let mut state = State::None;
@@ -164,10 +64,10 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
                 word.push(c);
             }
             '+' => {
-                tokens.push(Token::BinOp(BinOp::Plus));
+                tokens.push(Token::BinOp(BinOp::Add));
             }
             '-' => {
-                tokens.push(Token::BinOp(BinOp::Minus));
+                tokens.push(Token::BinOp(BinOp::Sub));
             }
             '*' => {
                 tokens.push(Token::BinOp(BinOp::Mul));
@@ -179,66 +79,104 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
                 tokens.push(Token::BinOp(BinOp::Mod));
             }
             '!' => {
-                if iter.peek() == Some(&'=') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::NotEq));
-                } else {
-                    tokens.push(Token::UnOp(UnOp::Not));
+                match iter.peek() {
+                    Some('=') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::NotEq));
+                    }
+                    _ => {
+                        tokens.push(Token::UnOp(UnOp::LogicalNot));
+                    }
                 }
             }
             '~' => {
                 tokens.push(Token::UnOp(UnOp::BitNot));
             }
             '&' => {
-                if iter.peek() == Some(&'&') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::LogicalAnd));
-                } else {
-                    tokens.push(Token::BinOp(BinOp::BitAnd));
+                match iter.peek() {
+                    Some('&') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::LogicalAnd));
+                    }
+                    _ => {
+                        tokens.push(Token::BinOp(BinOp::BitAnd));
+                    }
                 }
             }
             '|' => {
-                if iter.peek() == Some(&'|') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::LogicalOr));
-                } else {
-                    tokens.push(Token::BinOp(BinOp::BitOr));
+                match iter.peek() {
+                    Some('|') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::LogicalOr));
+                    }
+                    _ => {
+                        tokens.push(Token::BinOp(BinOp::BitOr));
+                    }
                 }
             }
             '^' => {
                 tokens.push(Token::BinOp(BinOp::BitXor));
             }
             '<' => {
-                if iter.peek() == Some(&'<') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::ShiftLeft));
-                } else if iter.peek() == Some(&'=') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::LessEq));
-                } else {
-                    tokens.push(Token::BinOp(BinOp::Less));
+                match iter.peek() {
+                    Some('<') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::ShiftLeft));
+                    }
+                    Some('=') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::LessEq));
+                    }
+                    _ => {
+                        tokens.push(Token::BinOp(BinOp::Less));
+                    }
                 }
             }
             '>' => {
-                if iter.peek() == Some(&'>') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::ShiftRight));
-                } else if iter.peek() == Some(&'=') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::GreaterEq));
-                } else {
-                    tokens.push(Token::BinOp(BinOp::Greater));
+                match iter.peek() {
+                    Some('<') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::ShiftRight));
+                    }
+                    Some('=') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::GreaterEq));
+                    }
+                    _ => {
+                        tokens.push(Token::BinOp(BinOp::Greater));
+                    }
                 }
             }
             '=' => {
-                if iter.peek() == Some(&'=') {
-                    iter.next();
-                    tokens.push(Token::BinOp(BinOp::Eq));
-                } else {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected character: {}",
-                        c
-                    )));
+                match iter.peek() {
+                    Some('=') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::Eq));
+                    }
+                    _ => {
+                        return Err(ExprError::SyntaxError(format!(
+                            "unexpected character: {}",
+                            c
+                        )));
+                    }
+                }
+            }
+            '@' => {
+                match iter.peek() {
+                    Some('+') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::WrappingAdd));
+                    }
+                    Some('-') => {
+                        iter.next();
+                        tokens.push(Token::BinOp(BinOp::WrappingSub));
+                    }
+                    _ => {
+                        return Err(ExprError::SyntaxError(format!(
+                            "unexpected character: {}",
+                            c
+                        )));
+                    }
                 }
             }
             '(' => {
@@ -274,15 +212,6 @@ fn tokenise(input: &str) -> Result<Vec<Token>> {
     Ok(tokens)
 }
 
-fn parse(tokens: &[Token]) -> Result<Expr> {
-    let mut iter = tokens.iter().peekable();
-
-}
-
-fn main() {
-    println!("Hello, world!");
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -293,7 +222,7 @@ mod test {
             tokenise("1 + 2"),
             Ok(vec![
                 Token::Literal(Val::Int(1)),
-                Token::BinOp(BinOp::Plus),
+                Token::BinOp(BinOp::Add),
                 Token::Literal(Val::Int(2)),
             ])
         );
@@ -302,7 +231,7 @@ mod test {
             tokenise("1+2*foo(bar)"),
             Ok(vec![
                 Token::Literal(Val::Int(1)),
-                Token::BinOp(BinOp::Plus),
+                Token::BinOp(BinOp::Add),
                 Token::Literal(Val::Int(2)),
                 Token::BinOp(BinOp::Mul),
                 Token::Identifier("foo".to_string()),
@@ -317,9 +246,9 @@ mod test {
             tokenise("1+2-3*4/5%6<<7>>8&9|10^11&&12||13==14!=15<16<=17>18>=19"),
             Ok(vec![
                 Token::Literal(Val::Int(1)),
-                Token::BinOp(BinOp::Plus),
+                Token::BinOp(BinOp::Add),
                 Token::Literal(Val::Int(2)),
-                Token::BinOp(BinOp::Minus),
+                Token::BinOp(BinOp::Sub),
                 Token::Literal(Val::Int(3)),
                 Token::BinOp(BinOp::Mul),
                 Token::Literal(Val::Int(4)),
