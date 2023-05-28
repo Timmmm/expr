@@ -1,7 +1,7 @@
 
 use crate::error::{ExprError, Result};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum Val {
     Int(u64),
     Bool(bool),
@@ -68,8 +68,9 @@ impl Ast {
                     }
                 }
             }
-
-            _ => todo!()
+            Ast::Literal(v) => Ok(*v),
+            Ast::Call(func, param) => todo!(),
+            Ast::Var(name) => todo!(),
         }
     }
 }

@@ -159,4 +159,11 @@ mod test {
             )
         );
     }
+
+    #[test]
+    fn test_evaluation() {
+        let tokens = tokenise("1 + 2 * 3").unwrap();
+        let ast = parse(tokens).unwrap();
+        assert_eq!(ast.evaluate(), Ok(Val::Int(7)));
+    }
 }
