@@ -16,7 +16,7 @@ pub enum Ast {
     Literal(Val),
 }
 
-trait Context {
+pub trait Context {
     fn var(&self, name: &str) -> Option<Val>;
     fn call(&self, name: &str, arg: Val) -> Option<Val>;
 }

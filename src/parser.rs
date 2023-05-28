@@ -104,6 +104,11 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                             let operand = operand_stack.pop().unwrap();
                             operand_stack.push(Ast::UnOp(Box::new(operand), op));
                         }
+                        Token::Identifier(name) => {
+                            // Function call.
+                            let param = operand_stack.pop().unwrap();
+                            operand_stack.push(Ast::Call(name, Box::new(param)));
+                        }
                         _ => unreachable!(),
                     }
                 }
@@ -126,6 +131,11 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
             Token::LeftBracket => {
                 return Err(ExprError::SyntaxError("unmatched (".to_string()));
             }
+            Token::Identifier(name) => {
+                // Function call.
+                let param = operand_stack.pop().unwrap();
+                operand_stack.push(Ast::Call(name, Box::new(param)));
+            }
             _ => unreachable!(),
         }
     }
@@ -138,7 +148,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
 
 #[cfg(test)]
 mod test {
-    use crate::{tokenise, ast::{BinOp, Val}};
+    use crate::{tokenise, ast::{BinOp, Val, Context}};
 
     use super::*;
 
@@ -160,10 +170,35 @@ mod test {
         );
     }
 
+    struct SimpleContext {
+    }
+
+    impl Context for SimpleContext {
+        fn var(&self, name: &str) -> Option<Val> {
+            match name {
+                "x" => Some(Val::Int(1)),
+                "y" => Some(Val::Int(2)),
+                _ => None,
+            }
+        }
+        fn call(&self, name: &str, param: Val) -> Option<Val> {
+            match name {
+                "inc" => {
+                    match param {
+                        Val::Int(x) => Some(Val::Int(x + 1)),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            }
+        }
+    }
+
     #[test]
     fn test_evaluation() {
-        let tokens = tokenise("1 + 2 * 3").unwrap();
+        let tokens = tokenise("1 + 2 * 3 + inc(4)").unwrap();
         let ast = parse(tokens).unwrap();
-        assert_eq!(ast.evaluate(), Ok(Val::Int(7)));
+        let context = SimpleContext{};
+        assert_eq!(ast.evaluate(&context), Ok(Val::Int(1 + 2 * 3 + (4+1))));
     }
 }
