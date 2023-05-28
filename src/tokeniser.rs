@@ -152,7 +152,7 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
                 }
             },
             '>' => match iter.peek() {
-                Some('<') => {
+                Some('>') => {
                     iter.next();
                     tokens.push(Token::BinOp(BinOp::ShiftRight));
                 }
