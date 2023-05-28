@@ -5,6 +5,7 @@ pub enum ExprError {
     SyntaxError(String),
     TypeError(String),
     Overflow(String),
+    NameError(String),
 }
 
 impl fmt::Display for ExprError {
@@ -13,6 +14,7 @@ impl fmt::Display for ExprError {
             ExprError::SyntaxError(s) => write!(f, "Syntax error: {}", s),
             ExprError::TypeError(s) => write!(f, "Type error: {}", s),
             ExprError::Overflow(s) => write!(f, "Overflow: {}", s),
+            ExprError::NameError(s) => write!(f, "Name error: {}", s),
         }
     }
 }

@@ -16,10 +16,15 @@ pub enum Ast {
     Literal(Val),
 }
 
+trait Context {
+    fn var(&self, name: &str) -> Option<Val>;
+    fn call(&self, name: &str, arg: Val) -> Option<Val>;
+}
+
 impl Ast {
-    pub fn evaluate(&self) -> Result<Val> {
+    pub fn evaluate(&self, context: &dyn Context) -> Result<Val> {
         match self {
-            Ast::BinOp(a, b, op) => match (a.evaluate()?, b.evaluate()?) {
+            Ast::BinOp(a, b, op) => match (a.evaluate(context)?, b.evaluate(context)?) {
                 (Val::Int(a), Val::Int(b)) => {
                     match op {
                         BinOp::Add => Ok(Val::Int(a.checked_add(b).ok_or(ExprError::Overflow("add overflow".to_string()))?)),
@@ -54,7 +59,7 @@ impl Ast {
                 }
                 _ => Err(ExprError::TypeError("binary operand types must match".to_string())),
             }
-            Ast::UnOp(a, op) => match a.evaluate()? {
+            Ast::UnOp(a, op) => match a.evaluate(context)? {
                 Val::Int(a) => {
                     match op {
                         UnOp::BitNot => Ok(Val::Int(!a)),
@@ -69,8 +74,8 @@ impl Ast {
                 }
             }
             Ast::Literal(v) => Ok(*v),
-            Ast::Call(func, param) => todo!(),
-            Ast::Var(name) => todo!(),
+            Ast::Call(func, param) => context.call(func, param.evaluate(context)?).ok_or(ExprError::NameError(format!("function '{}' not found", func))),
+            Ast::Var(name) => context.var(name).ok_or(ExprError::NameError(format!("variable '{}' not found", name))),
         }
     }
 }
