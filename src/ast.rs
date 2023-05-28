@@ -142,29 +142,22 @@ pub trait Precedence {
 
 impl Precedence for BinOp {
     fn precedence(&self) -> u8 {
-        // Same as Go. https://go.dev/ref/spec#Operators
-        // Or should I use Rust? https://doc.rust-lang.org/reference/expressions.html#expression-precedence
+        // Same as Rust: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
         match self {
-            BinOp::LogicalOr => 0,
-            BinOp::LogicalAnd => 1,
+            BinOp::Mul | BinOp::Div | BinOp::Mod => 8,
+            BinOp::Add | BinOp::Sub => 7,
+            BinOp::ShiftLeft | BinOp::ShiftRight => 6,
+            BinOp::BitAnd => 5,
+            BinOp::BitXor => 4,
+            BinOp::BitOr => 3,
             BinOp::Eq
             | BinOp::NotEq
             | BinOp::Less
             | BinOp::LessEq
             | BinOp::Greater
             | BinOp::GreaterEq => 2,
-            BinOp::Add
-            | BinOp::Sub
-            | BinOp::WrappingAdd
-            | BinOp::WrappingSub
-            | BinOp::BitOr
-            | BinOp::BitXor => 3,
-            BinOp::Mul
-            | BinOp::Div
-            | BinOp::Mod
-            | BinOp::BitAnd
-            | BinOp::ShiftLeft
-            | BinOp::ShiftRight => 4,
+            BinOp::LogicalAnd => 1,
+            BinOp::LogicalOr => 0,
         }
     }
 }
@@ -172,7 +165,7 @@ impl Precedence for BinOp {
 impl Precedence for UnOp {
     fn precedence(&self) -> u8 {
         match self {
-            UnOp::LogicalNot | UnOp::BitNot => 5,
+            UnOp::LogicalNot | UnOp::BitNot => 9,
         }
     }
 }

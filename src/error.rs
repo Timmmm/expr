@@ -14,7 +14,7 @@ impl fmt::Display for ExprError {
             ExprError::SyntaxError(s) => write!(f, "Syntax error: {}", s),
             ExprError::TypeError(s) => write!(f, "Type error: {}", s),
             ExprError::Overflow(s) => write!(f, "Overflow: {}", s),
-            ExprError::NameError(s) => write!(f, "Name error: {}", s),
+            ExprError::NameError(s) => write!(f, "Name lookup error: {}", s),
         }
     }
 }
