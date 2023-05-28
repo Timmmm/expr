@@ -1,4 +1,3 @@
-
 use crate::ast::{BinOp, UnOp, Val};
 use crate::error::{ExprError, Result};
 
@@ -78,89 +77,77 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
             '%' => {
                 tokens.push(Token::BinOp(BinOp::Mod));
             }
-            '!' => {
-                match iter.peek() {
-                    Some('=') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::NotEq));
-                    }
-                    _ => {
-                        tokens.push(Token::UnOp(UnOp::LogicalNot));
-                    }
+            '!' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::NotEq));
                 }
-            }
+                _ => {
+                    tokens.push(Token::UnOp(UnOp::LogicalNot));
+                }
+            },
             '~' => {
                 tokens.push(Token::UnOp(UnOp::BitNot));
             }
-            '&' => {
-                match iter.peek() {
-                    Some('&') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::LogicalAnd));
-                    }
-                    _ => {
-                        tokens.push(Token::BinOp(BinOp::BitAnd));
-                    }
+            '&' => match iter.peek() {
+                Some('&') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::LogicalAnd));
                 }
-            }
-            '|' => {
-                match iter.peek() {
-                    Some('|') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::LogicalOr));
-                    }
-                    _ => {
-                        tokens.push(Token::BinOp(BinOp::BitOr));
-                    }
+                _ => {
+                    tokens.push(Token::BinOp(BinOp::BitAnd));
                 }
-            }
+            },
+            '|' => match iter.peek() {
+                Some('|') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::LogicalOr));
+                }
+                _ => {
+                    tokens.push(Token::BinOp(BinOp::BitOr));
+                }
+            },
             '^' => {
                 tokens.push(Token::BinOp(BinOp::BitXor));
             }
-            '<' => {
-                match iter.peek() {
-                    Some('<') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::ShiftLeft));
-                    }
-                    Some('=') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::LessEq));
-                    }
-                    _ => {
-                        tokens.push(Token::BinOp(BinOp::Less));
-                    }
+            '<' => match iter.peek() {
+                Some('<') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::ShiftLeft));
                 }
-            }
-            '>' => {
-                match iter.peek() {
-                    Some('<') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::ShiftRight));
-                    }
-                    Some('=') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::GreaterEq));
-                    }
-                    _ => {
-                        tokens.push(Token::BinOp(BinOp::Greater));
-                    }
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::LessEq));
                 }
-            }
-            '=' => {
-                match iter.peek() {
-                    Some('=') => {
-                        iter.next();
-                        tokens.push(Token::BinOp(BinOp::Eq));
-                    }
-                    _ => {
-                        return Err(ExprError::SyntaxError(format!(
-                            "unexpected character: {}",
-                            c
-                        )));
-                    }
+                _ => {
+                    tokens.push(Token::BinOp(BinOp::Less));
                 }
-            }
+            },
+            '>' => match iter.peek() {
+                Some('<') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::ShiftRight));
+                }
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::GreaterEq));
+                }
+                _ => {
+                    tokens.push(Token::BinOp(BinOp::Greater));
+                }
+            },
+            '=' => match iter.peek() {
+                Some('=') => {
+                    iter.next();
+                    tokens.push(Token::BinOp(BinOp::Eq));
+                }
+                _ => {
+                    return Err(ExprError::SyntaxError(format!(
+                        "unexpected character: {}",
+                        c
+                    )));
+                }
+            },
             '(' => {
                 tokens.push(Token::LeftBracket);
             }

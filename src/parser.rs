@@ -1,6 +1,6 @@
-use crate::tokeniser::Token;
-use crate::error::{Result, ExprError};
 use crate::ast::{Ast, Precedence};
+use crate::error::{ExprError, Result};
+use crate::tokeniser::Token;
 
 #[derive(PartialEq, Eq)]
 enum State {
@@ -148,7 +148,10 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
 
 #[cfg(test)]
 mod test {
-    use crate::{tokenise, ast::{BinOp, Val, Context}};
+    use crate::{
+        ast::{BinOp, Context, Val},
+        tokenise,
+    };
 
     use super::*;
 
@@ -170,8 +173,7 @@ mod test {
         );
     }
 
-    struct SimpleContext {
-    }
+    struct SimpleContext {}
 
     impl Context for SimpleContext {
         fn var(&self, name: &str) -> Option<Val> {
@@ -183,12 +185,10 @@ mod test {
         }
         fn call(&self, name: &str, param: Val) -> Option<Val> {
             match name {
-                "inc" => {
-                    match param {
-                        Val::Int(x) => Some(Val::Int(x + 1)),
-                        _ => None,
-                    }
-                }
+                "inc" => match param {
+                    Val::Int(x) => Some(Val::Int(x + 1)),
+                    _ => None,
+                },
                 _ => None,
             }
         }
@@ -198,7 +198,7 @@ mod test {
     fn test_evaluation() {
         let tokens = tokenise("1 + 2 * 3 + inc(4)").unwrap();
         let ast = parse(tokens).unwrap();
-        let context = SimpleContext{};
-        assert_eq!(ast.evaluate(&context), Ok(Val::Int(1 + 2 * 3 + (4+1))));
+        let context = SimpleContext {};
+        assert_eq!(ast.evaluate(&context), Ok(Val::Int(1 + 2 * 3 + (4 + 1))));
     }
 }

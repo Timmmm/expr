@@ -1,4 +1,3 @@
-
 use crate::error::{ExprError, Result};
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
@@ -25,55 +24,86 @@ impl Ast {
     pub fn evaluate(&self, context: &dyn Context) -> Result<Val> {
         match self {
             Ast::BinOp(a, b, op) => match (a.evaluate(context)?, b.evaluate(context)?) {
-                (Val::Int(a), Val::Int(b)) => {
-                    match op {
-                        BinOp::Add => Ok(Val::Int(a.checked_add(b).ok_or(ExprError::Overflow("add overflow".to_string()))?)),
-                        BinOp::Sub => Ok(Val::Int(a.checked_sub(b).ok_or(ExprError::Overflow("subtract overflow".to_string()))?)),
-                        BinOp::Mul => Ok(Val::Int(a.checked_mul(b).ok_or(ExprError::Overflow("multiply overflow".to_string()))?)),
-                        BinOp::Div => Ok(Val::Int(a.checked_div(b).ok_or(ExprError::Overflow("division by zero".to_string()))?)),
-                        BinOp::Mod => Ok(Val::Int(a.checked_rem(b).ok_or(ExprError::Overflow("modulus by zero".to_string()))?)),
-                        BinOp::ShiftLeft => Ok(Val::Int(a.checked_shl(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0))),
-                        BinOp::ShiftRight => Ok(Val::Int(a.checked_shr(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0))),
-                        BinOp::Eq => Ok(Val::Bool(a == b)),
-                        BinOp::NotEq => Ok(Val::Bool(a != b)),
-                        BinOp::Less => Ok(Val::Bool(a < b)),
-                        BinOp::LessEq => Ok(Val::Bool(a <= b)),
-                        BinOp::Greater => Ok(Val::Bool(a > b)),
-                        BinOp::GreaterEq => Ok(Val::Bool(a >= b)),
-                        BinOp::BitAnd => Ok(Val::Int(a & b)),
-                        BinOp::BitOr => Ok(Val::Int(a | b)),
-                        BinOp::BitXor => Ok(Val::Int(a ^ b)),
-                        _ => Err(ExprError::TypeError("invalid binary operator for ints".to_string())),
-                    }
-                }
-                (Val::Bool(a), Val::Bool(b)) => {
-                    match op {
-                        BinOp::Eq => Ok(Val::Bool(a == b)),
-                        BinOp::NotEq => Ok(Val::Bool(a != b)),
-                        BinOp::LogicalAnd => Ok(Val::Bool(a && b)),
-                        BinOp::LogicalOr => Ok(Val::Bool(a || b)),
-                        _ => Err(ExprError::TypeError("invalid binary operator for bools".to_string())),
-                    }
-                }
-                _ => Err(ExprError::TypeError("binary operand types must match".to_string())),
-            }
+                (Val::Int(a), Val::Int(b)) => match op {
+                    BinOp::Add => Ok(Val::Int(
+                        a.checked_add(b)
+                            .ok_or(ExprError::Overflow("add overflow".to_string()))?,
+                    )),
+                    BinOp::Sub => Ok(Val::Int(
+                        a.checked_sub(b)
+                            .ok_or(ExprError::Overflow("subtract overflow".to_string()))?,
+                    )),
+                    BinOp::Mul => Ok(Val::Int(
+                        a.checked_mul(b)
+                            .ok_or(ExprError::Overflow("multiply overflow".to_string()))?,
+                    )),
+                    BinOp::Div => Ok(Val::Int(
+                        a.checked_div(b)
+                            .ok_or(ExprError::Overflow("division by zero".to_string()))?,
+                    )),
+                    BinOp::Mod => Ok(Val::Int(
+                        a.checked_rem(b)
+                            .ok_or(ExprError::Overflow("modulus by zero".to_string()))?,
+                    )),
+                    BinOp::ShiftLeft => Ok(Val::Int(
+                        a.checked_shl(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0),
+                    )),
+                    BinOp::ShiftRight => Ok(Val::Int(
+                        a.checked_shr(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0),
+                    )),
+                    BinOp::Eq => Ok(Val::Bool(a == b)),
+                    BinOp::NotEq => Ok(Val::Bool(a != b)),
+                    BinOp::Less => Ok(Val::Bool(a < b)),
+                    BinOp::LessEq => Ok(Val::Bool(a <= b)),
+                    BinOp::Greater => Ok(Val::Bool(a > b)),
+                    BinOp::GreaterEq => Ok(Val::Bool(a >= b)),
+                    BinOp::BitAnd => Ok(Val::Int(a & b)),
+                    BinOp::BitOr => Ok(Val::Int(a | b)),
+                    BinOp::BitXor => Ok(Val::Int(a ^ b)),
+                    _ => Err(ExprError::TypeError(
+                        "invalid binary operator for ints".to_string(),
+                    )),
+                },
+                (Val::Bool(a), Val::Bool(b)) => match op {
+                    BinOp::Eq => Ok(Val::Bool(a == b)),
+                    BinOp::NotEq => Ok(Val::Bool(a != b)),
+                    BinOp::LogicalAnd => Ok(Val::Bool(a && b)),
+                    BinOp::LogicalOr => Ok(Val::Bool(a || b)),
+                    _ => Err(ExprError::TypeError(
+                        "invalid binary operator for bools".to_string(),
+                    )),
+                },
+                _ => Err(ExprError::TypeError(
+                    "binary operand types must match".to_string(),
+                )),
+            },
             Ast::UnOp(a, op) => match a.evaluate(context)? {
-                Val::Int(a) => {
-                    match op {
-                        UnOp::BitNot => Ok(Val::Int(!a)),
-                        _ => Err(ExprError::TypeError("invalid unary operator for ints".to_string())),
-                    }
-                }
-                Val::Bool(a) => {
-                    match op {
-                        UnOp::LogicalNot => Ok(Val::Bool(!a)),
-                        _ => Err(ExprError::TypeError("invalid unary operator for bools".to_string())),
-                    }
-                }
-            }
+                Val::Int(a) => match op {
+                    UnOp::BitNot => Ok(Val::Int(!a)),
+                    _ => Err(ExprError::TypeError(
+                        "invalid unary operator for ints".to_string(),
+                    )),
+                },
+                Val::Bool(a) => match op {
+                    UnOp::LogicalNot => Ok(Val::Bool(!a)),
+                    _ => Err(ExprError::TypeError(
+                        "invalid unary operator for bools".to_string(),
+                    )),
+                },
+            },
             Ast::Literal(v) => Ok(*v),
-            Ast::Call(func, param) => context.call(func, param.evaluate(context)?).ok_or(ExprError::NameError(format!("function '{}' not found", func))),
-            Ast::Var(name) => context.var(name).ok_or(ExprError::NameError(format!("variable '{}' not found", name))),
+            Ast::Call(func, param) => {
+                context
+                    .call(func, param.evaluate(context)?)
+                    .ok_or(ExprError::NameError(format!(
+                        "function '{}' not found",
+                        func
+                    )))
+            }
+            Ast::Var(name) => context.var(name).ok_or(ExprError::NameError(format!(
+                "variable '{}' not found",
+                name
+            ))),
         }
     }
 }
@@ -117,9 +147,24 @@ impl Precedence for BinOp {
         match self {
             BinOp::LogicalOr => 0,
             BinOp::LogicalAnd => 1,
-            BinOp::Eq | BinOp::NotEq | BinOp::Less | BinOp::LessEq | BinOp::Greater | BinOp::GreaterEq => 2,
-            BinOp::Add | BinOp::Sub | BinOp::WrappingAdd | BinOp::WrappingSub | BinOp::BitOr | BinOp::BitXor => 3,
-            BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::BitAnd | BinOp::ShiftLeft | BinOp::ShiftRight => 4,
+            BinOp::Eq
+            | BinOp::NotEq
+            | BinOp::Less
+            | BinOp::LessEq
+            | BinOp::Greater
+            | BinOp::GreaterEq => 2,
+            BinOp::Add
+            | BinOp::Sub
+            | BinOp::WrappingAdd
+            | BinOp::WrappingSub
+            | BinOp::BitOr
+            | BinOp::BitXor => 3,
+            BinOp::Mul
+            | BinOp::Div
+            | BinOp::Mod
+            | BinOp::BitAnd
+            | BinOp::ShiftLeft
+            | BinOp::ShiftRight => 4,
         }
     }
 }
