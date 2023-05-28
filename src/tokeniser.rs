@@ -1,7 +1,9 @@
+use std::fmt::Display;
+
 use crate::ast::{BinOp, UnOp, Val};
 use crate::error::{ExprError, Result};
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Clone)]
 pub enum Token {
     Literal(Val),
     BinOp(BinOp),
@@ -11,11 +13,36 @@ pub enum Token {
     RightBracket,
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Token::Literal(v) => write!(f, "{}", v),
+            Token::BinOp(op) => write!(f, "{}", op),
+            Token::UnOp(op) => write!(f, "{}", op),
+            Token::Identifier(s) => write!(f, "{}", s),
+            Token::LeftBracket => write!(f, "("),
+            Token::RightBracket => write!(f, ")"),
+        }
+    }
+}
+
 #[derive(PartialEq, Eq)]
 enum State {
     None,
     Int,
     Identifier,
+}
+
+fn parse_int(s: &str) -> std::result::Result<u64, std::num::ParseIntError> {
+    if let Some(s) = s.strip_prefix("0x") {
+        u64::from_str_radix(s, 16)
+    } else if let Some(s) = s.strip_prefix("0o") {
+        u64::from_str_radix(s, 8)
+    } else if let Some(s) = s.strip_prefix("0b") {
+        u64::from_str_radix(s, 2)
+    } else {
+        u64::from_str_radix(s, 10)
+    }
 }
 
 pub fn tokenise(input: &str) -> Result<Vec<Token>> {
@@ -35,9 +62,10 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
             if !word.is_empty() {
                 match state {
                     State::Int => {
-                        tokens.push(Token::Literal(Val::Int(word.parse().map_err(|_| {
-                            ExprError::SyntaxError(format!("invalid integer: {}", word))
-                        })?)));
+                        tokens.push(Token::Literal(Val::Int(
+                            parse_int(&word)
+                                .map_err(|_| ExprError::IntegerParseError(word))?,
+                        )));
                     }
                     State::Identifier => {
                         tokens.push(Token::Identifier(word));
@@ -142,10 +170,7 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
                     tokens.push(Token::BinOp(BinOp::Eq));
                 }
                 _ => {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected character: {}",
-                        c
-                    )));
+                    return Err(ExprError::UnexpectedCharacter(c));
                 }
             },
             '(' => {
@@ -156,10 +181,7 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
             }
             ' ' | '\t' | '\n' => {}
             _ => {
-                return Err(ExprError::SyntaxError(format!(
-                    "unexpected character: {}",
-                    c
-                )))
+                return Err(ExprError::UnexpectedCharacter(c));
             }
         }
     }
@@ -167,9 +189,10 @@ pub fn tokenise(input: &str) -> Result<Vec<Token>> {
     if !word.is_empty() {
         match state {
             State::Int => {
-                tokens.push(Token::Literal(Val::Int(word.parse().map_err(|_| {
-                    ExprError::SyntaxError(format!("invalid integer: {}", word))
-                })?)));
+                tokens.push(Token::Literal(Val::Int(
+                    parse_int(&word)
+                        .map_err(|_| ExprError::IntegerParseError(word))?,
+                )));
             }
             State::Identifier => {
                 tokens.push(Token::Identifier(word));

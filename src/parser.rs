@@ -23,24 +23,22 @@ impl Operator {
     fn precedence(&self) -> u8 {
         match self {
             Operator::UnOp(_) | Operator::Call(_) => 10,
-            Operator::BinOp(op) => {
-                match op {
-                    BinOp::Mul | BinOp::Div | BinOp::Mod => 9,
-                    BinOp::Add | BinOp::Sub => 8,
-                    BinOp::ShiftLeft | BinOp::ShiftRight => 7,
-                    BinOp::BitAnd => 6,
-                    BinOp::BitXor => 5,
-                    BinOp::BitOr => 4,
-                    BinOp::Eq
-                    | BinOp::NotEq
-                    | BinOp::Less
-                    | BinOp::LessEq
-                    | BinOp::Greater
-                    | BinOp::GreaterEq => 3,
-                    BinOp::LogicalAnd => 2,
-                    BinOp::LogicalOr => 1,
-                }
-            }
+            Operator::BinOp(op) => match op {
+                BinOp::Mul | BinOp::Div | BinOp::Mod => 9,
+                BinOp::Add | BinOp::Sub => 8,
+                BinOp::ShiftLeft | BinOp::ShiftRight => 7,
+                BinOp::BitAnd => 6,
+                BinOp::BitXor => 5,
+                BinOp::BitOr => 4,
+                BinOp::Eq
+                | BinOp::NotEq
+                | BinOp::Less
+                | BinOp::LessEq
+                | BinOp::Greater
+                | BinOp::GreaterEq => 3,
+                BinOp::LogicalAnd => 2,
+                BinOp::LogicalOr => 1,
+            },
             // Not relevant.
             Operator::Brackets => 0,
         }
@@ -53,7 +51,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
     // Parse using the shunting yard algorithm. We also use a state machine
     // to check for valid syntax.
     let mut operator_stack = Vec::new();
-    let mut operand_stack = Vec::new();
+    let mut ast_stack = Vec::new();
 
     let mut state = State::ExpectingOperand;
 
@@ -61,20 +59,14 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
         match token {
             Token::Literal(val) => {
                 if state != State::ExpectingOperand {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected literal: {:?}",
-                        val
-                    )));
+                    return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperator;
-                operand_stack.push(Ast::Literal(val));
+                ast_stack.push(Ast::Literal(val));
             }
             Token::Identifier(s) => {
                 if state != State::ExpectingOperand {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected identifier: {:?}",
-                        s
-                    )));
+                    return Err(ExprError::UnexpectedToken(Token::Identifier(s)));
                 }
                 if let Some(Token::LeftBracket) = iter.peek() {
                     // Function call.
@@ -82,26 +74,20 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     // Still expecting an operand.
                 } else {
                     // Variable.
-                    operand_stack.push(Ast::Var(s.clone()));
+                    ast_stack.push(Ast::Var(s.clone()));
                     state = State::ExpectingOperator;
                 }
             }
             Token::UnOp(op) => {
                 if state != State::ExpectingOperand {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected unary operator: {:?}",
-                        op
-                    )));
+                    return Err(ExprError::UnexpectedToken(token));
                 }
                 // No need to pop operators with higher precedence since there aren't any.
                 operator_stack.push(Operator::UnOp(op));
             }
             Token::BinOp(op) => {
                 if state != State::ExpectingOperator {
-                    return Err(ExprError::SyntaxError(format!(
-                        "unexpected binary operator: {:?}",
-                        op
-                    )));
+                    return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperand;
 
@@ -116,18 +102,18 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     match top_op {
                         Operator::Brackets => break,
                         Operator::BinOp(op) => {
-                            let rhs = operand_stack.pop().unwrap();
-                            let lhs = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            let rhs = ast_stack.pop().unwrap();
+                            let lhs = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
-                            let operand = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::UnOp(Box::new(operand), op));
+                            let operand = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
-                            let param = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::Call(name, Box::new(param)));
+                            let param = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -135,13 +121,13 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
             }
             Token::LeftBracket => {
                 if state != State::ExpectingOperand {
-                    return Err(ExprError::SyntaxError("unexpected (".to_string()));
+                    return Err(ExprError::UnexpectedToken(token));
                 }
                 operator_stack.push(Operator::Brackets);
             }
             Token::RightBracket => {
                 if state != State::ExpectingOperator {
-                    return Err(ExprError::SyntaxError("unexpected )".to_string()));
+                    return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperator;
 
@@ -150,18 +136,18 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     match top_op {
                         Operator::Brackets => break,
                         Operator::BinOp(op) => {
-                            let rhs = operand_stack.pop().unwrap();
-                            let lhs = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            let rhs = ast_stack.pop().unwrap();
+                            let lhs = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
-                            let operand = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::UnOp(Box::new(operand), op));
+                            let operand = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
-                            let param = operand_stack.pop().unwrap();
-                            operand_stack.push(Ast::Call(name, Box::new(param)));
+                            let param = ast_stack.pop().unwrap();
+                            ast_stack.push(Ast::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -170,41 +156,41 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
     }
 
     dbg!(&operator_stack);
-    dbg!(&operand_stack);
+    dbg!(&ast_stack);
 
     // Pop operators until the stack is empty.
     while let Some(top_op) = operator_stack.pop() {
         match top_op {
             Operator::BinOp(op) => {
-                let rhs = operand_stack.pop().unwrap();
-                let lhs = operand_stack.pop().unwrap();
-                operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                let rhs = ast_stack.pop().unwrap();
+                let lhs = ast_stack.pop().unwrap();
+                ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
             }
             Operator::UnOp(op) => {
-                let operand = operand_stack.pop().unwrap();
-                operand_stack.push(Ast::UnOp(Box::new(operand), op));
+                let operand = ast_stack.pop().unwrap();
+                ast_stack.push(Ast::UnOp(Box::new(operand), op));
             }
             Operator::Brackets => {
-                return Err(ExprError::SyntaxError("unmatched (".to_string()));
+                return Err(ExprError::UnmatchedLeftBracket);
             }
             Operator::Call(name) => {
                 // Function call.
-                let param = operand_stack.pop().unwrap();
-                operand_stack.push(Ast::Call(name, Box::new(param)));
+                let param = ast_stack.pop().unwrap();
+                ast_stack.push(Ast::Call(name, Box::new(param)));
             }
         }
     }
     // The operand stack should now contain a single AST node.
-    if operand_stack.len() != 1 {
-        return Err(ExprError::SyntaxError("invalid expression".to_string()));
+    if ast_stack.len() != 1 {
+        return Err(ExprError::InvalidExpression);
     }
-    Ok(operand_stack.pop().unwrap())
+    Ok(ast_stack.pop().unwrap())
 }
 
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinOp, Val, UnOp},
+        ast::{BinOp, UnOp, Val},
         tokenise,
     };
 
@@ -254,7 +240,10 @@ mod test {
             ast,
             Ast::BinOp(
                 Box::new(Ast::Literal(Val::Int(3))),
-                Box::new(Ast::Call("f".to_string(), Box::new(Ast::Literal(Val::Int(1))))),
+                Box::new(Ast::Call(
+                    "f".to_string(),
+                    Box::new(Ast::Literal(Val::Int(1)))
+                )),
                 BinOp::Mul
             ),
         );

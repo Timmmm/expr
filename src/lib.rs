@@ -7,7 +7,6 @@ pub use ast::{Ast, Context};
 pub use parser::parse;
 pub use tokeniser::tokenise;
 
-
 #[cfg(test)]
 mod test {
     use crate::ast::Val;
@@ -40,10 +39,7 @@ mod test {
         let tokens = tokenise("4 * inc(2) + 1").unwrap();
         let ast = parse(tokens).unwrap();
         let result = ast.evaluate(&SimpleContext {});
-        assert_eq!(
-            result,
-            Ok(Val::Int(4 * (2 + 1) + 1))
-        );
+        assert_eq!(result, Ok(Val::Int(4 * (2 + 1) + 1)));
     }
 
     #[test]
@@ -51,9 +47,6 @@ mod test {
         let tokens = tokenise("x + y * 3 + (4 + 1) * inc(2) + 1").unwrap();
         let ast = parse(tokens).unwrap();
         let result = ast.evaluate(&SimpleContext {});
-        assert_eq!(
-            result,
-            Ok(Val::Int(1 + 2 * 3 + (4 + 1) * (2 + 1) + 1))
-        );
+        assert_eq!(result, Ok(Val::Int(1 + 2 * 3 + (4 + 1) * (2 + 1) + 1)));
     }
 }
