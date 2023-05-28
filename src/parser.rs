@@ -155,9 +155,6 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
         }
     }
 
-    dbg!(&operator_stack);
-    dbg!(&ast_stack);
-
     // Pop operators until the stack is empty.
     while let Some(top_op) = operator_stack.pop() {
         match top_op {
