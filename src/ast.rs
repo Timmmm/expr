@@ -1,9 +1,20 @@
+use std::fmt::Display;
+
 use crate::error::{ExprError, Result};
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum Val {
     Int(u64),
     Bool(bool),
+}
+
+impl Display for Val {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Val::Int(i) => write!(f, "{}", i),
+            Val::Bool(b) => write!(f, "{}", b),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -27,23 +38,23 @@ impl Ast {
                 (Val::Int(a), Val::Int(b)) => match op {
                     BinOp::Add => Ok(Val::Int(
                         a.checked_add(b)
-                            .ok_or(ExprError::Overflow("add overflow".to_string()))?,
+                            .ok_or(ExprError::Overflow(a, b, BinOp::Add))?,
                     )),
                     BinOp::Sub => Ok(Val::Int(
                         a.checked_sub(b)
-                            .ok_or(ExprError::Overflow("subtract overflow".to_string()))?,
+                            .ok_or(ExprError::Overflow(a, b, BinOp::Sub))?,
                     )),
                     BinOp::Mul => Ok(Val::Int(
                         a.checked_mul(b)
-                            .ok_or(ExprError::Overflow("multiply overflow".to_string()))?,
+                            .ok_or(ExprError::Overflow(a, b, BinOp::Mul))?,
                     )),
                     BinOp::Div => Ok(Val::Int(
                         a.checked_div(b)
-                            .ok_or(ExprError::Overflow("division by zero".to_string()))?,
+                            .ok_or(ExprError::Overflow(a, b, BinOp::Div))?,
                     )),
                     BinOp::Mod => Ok(Val::Int(
                         a.checked_rem(b)
-                            .ok_or(ExprError::Overflow("modulus by zero".to_string()))?,
+                            .ok_or(ExprError::Overflow(a, b, BinOp::Mod))?,
                     )),
                     BinOp::ShiftLeft => Ok(Val::Int(
                         a.checked_shl(b.try_into().unwrap_or(u32::MAX)).unwrap_or(0),
@@ -60,50 +71,34 @@ impl Ast {
                     BinOp::BitAnd => Ok(Val::Int(a & b)),
                     BinOp::BitOr => Ok(Val::Int(a | b)),
                     BinOp::BitXor => Ok(Val::Int(a ^ b)),
-                    _ => Err(ExprError::TypeError(
-                        "invalid binary operator for ints".to_string(),
-                    )),
+                    _ => Err(ExprError::BinopTypeError(Val::Int(a), Val::Int(b), *op))
                 },
                 (Val::Bool(a), Val::Bool(b)) => match op {
                     BinOp::Eq => Ok(Val::Bool(a == b)),
                     BinOp::NotEq => Ok(Val::Bool(a != b)),
                     BinOp::LogicalAnd => Ok(Val::Bool(a && b)),
                     BinOp::LogicalOr => Ok(Val::Bool(a || b)),
-                    _ => Err(ExprError::TypeError(
-                        "invalid binary operator for bools".to_string(),
-                    )),
+                    _ => Err(ExprError::BinopTypeError(Val::Bool(a), Val::Bool(b), *op))
                 },
-                _ => Err(ExprError::TypeError(
-                    "binary operand types must match".to_string(),
-                )),
+                (a, b) => Err(ExprError::BinopTypeError(a, b, *op))
             },
             Ast::UnOp(a, op) => match a.evaluate(context)? {
                 Val::Int(a) => match op {
                     UnOp::BitNot => Ok(Val::Int(!a)),
-                    _ => Err(ExprError::TypeError(
-                        "invalid unary operator for ints".to_string(),
-                    )),
+                    _ => Err(ExprError::UnopTypeError(Val::Int(a), *op)),
                 },
                 Val::Bool(a) => match op {
                     UnOp::LogicalNot => Ok(Val::Bool(!a)),
-                    _ => Err(ExprError::TypeError(
-                        "invalid unary operator for bools".to_string(),
-                    )),
+                    _ => Err(ExprError::UnopTypeError(Val::Bool(a), *op)),
                 },
             },
             Ast::Literal(v) => Ok(*v),
             Ast::Call(func, param) => {
                 context
                     .call(func, param.evaluate(context)?)
-                    .ok_or(ExprError::NameError(format!(
-                        "function '{}' not found",
-                        func
-                    )))
+                    .ok_or(ExprError::CallError(func.clone()))
             }
-            Ast::Var(name) => context.var(name).ok_or(ExprError::NameError(format!(
-                "variable '{}' not found",
-                name
-            ))),
+            Ast::Var(name) => context.var(name).ok_or(ExprError::VarError(name.clone())),
         }
     }
 }
@@ -130,42 +125,103 @@ pub enum BinOp {
     LogicalOr,
 }
 
+impl Display for BinOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Mod => "%",
+            BinOp::ShiftLeft => "<<",
+            BinOp::ShiftRight => ">>",
+            BinOp::Eq => "==",
+            BinOp::NotEq => "!=",
+            BinOp::Less => "<",
+            BinOp::LessEq => "<=",
+            BinOp::Greater => ">",
+            BinOp::GreaterEq => ">=",
+            BinOp::BitAnd => "&",
+            BinOp::BitOr => "|",
+            BinOp::BitXor => "^",
+            BinOp::LogicalAnd => "&&",
+            BinOp::LogicalOr => "||",
+        })
+    }
+}
+
+
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum UnOp {
     LogicalNot,
     BitNot,
 }
 
-pub trait Precedence {
-    fn precedence(&self) -> u8;
-}
-
-impl Precedence for BinOp {
-    fn precedence(&self) -> u8 {
-        // Same as Rust: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
-        match self {
-            BinOp::Mul | BinOp::Div | BinOp::Mod => 8,
-            BinOp::Add | BinOp::Sub => 7,
-            BinOp::ShiftLeft | BinOp::ShiftRight => 6,
-            BinOp::BitAnd => 5,
-            BinOp::BitXor => 4,
-            BinOp::BitOr => 3,
-            BinOp::Eq
-            | BinOp::NotEq
-            | BinOp::Less
-            | BinOp::LessEq
-            | BinOp::Greater
-            | BinOp::GreaterEq => 2,
-            BinOp::LogicalAnd => 1,
-            BinOp::LogicalOr => 0,
-        }
+impl Display for UnOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", match self {
+            UnOp::LogicalNot => "!",
+            UnOp::BitNot => "~",
+        })
     }
 }
 
-impl Precedence for UnOp {
-    fn precedence(&self) -> u8 {
-        match self {
-            UnOp::LogicalNot | UnOp::BitNot => 9,
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    struct SimpleContext {}
+
+    impl Context for SimpleContext {
+        fn var(&self, name: &str) -> Option<Val> {
+            match name {
+                "x" => Some(Val::Int(1)),
+                "y" => Some(Val::Int(2)),
+                _ => None,
+            }
         }
+        fn call(&self, name: &str, param: Val) -> Option<Val> {
+            match name {
+                "inc" => match param {
+                    Val::Int(x) => Some(Val::Int(x + 1)),
+                    _ => None,
+                },
+                _ => None,
+            }
+        }
+    }
+
+    #[test]
+    fn test_evaluation() {
+        let ast = Ast::BinOp(
+            Box::new(Ast::BinOp(
+                Box::new(Ast::BinOp(
+                    Box::new(Ast::Var("x".to_string())),
+                    Box::new(Ast::BinOp(
+                        Box::new(Ast::Var("y".to_string())),
+                        Box::new(Ast::Literal(Val::Int(3))),
+                        BinOp::Mul,
+                    )),
+                    BinOp::Add,
+                )),
+                Box::new(Ast::BinOp(
+                    Box::new(Ast::BinOp(
+                        Box::new(Ast::Literal(Val::Int(4))),
+                        Box::new(Ast::Literal(Val::Int(1))),
+                        BinOp::Add,
+                    )),
+                    Box::new(Ast::Call(
+                        "inc".to_string(),
+                        Box::new(Ast::Literal(Val::Int(2))),
+                    )),
+                    BinOp::Mul,
+                )),
+                BinOp::Add,
+            )),
+            Box::new(Ast::Literal(Val::Int(1))),
+            BinOp::Add,
+        );
+        let context = SimpleContext {};
+        assert_eq!(ast.evaluate(&context), Ok(Val::Int(1 + 2 * 3 + (4 + 1) * (2 + 1) + 1)));
     }
 }

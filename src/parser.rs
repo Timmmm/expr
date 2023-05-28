@@ -1,4 +1,4 @@
-use crate::ast::{Ast, Precedence};
+use crate::ast::{Ast, BinOp, UnOp};
 use crate::error::{ExprError, Result};
 use crate::tokeniser::Token;
 
@@ -8,6 +8,43 @@ enum State {
     ExpectingOperand,
     // Expecting binary operator or right bracket.
     ExpectingOperator,
+}
+
+#[derive(Debug)]
+enum Operator {
+    BinOp(BinOp),
+    UnOp(UnOp),
+    Call(String),
+    Brackets,
+}
+
+impl Operator {
+    // Same as Rust: https://doc.rust-lang.org/reference/expressions.html#expression-precedence
+    fn precedence(&self) -> u8 {
+        match self {
+            Operator::UnOp(_) | Operator::Call(_) => 10,
+            Operator::BinOp(op) => {
+                match op {
+                    BinOp::Mul | BinOp::Div | BinOp::Mod => 9,
+                    BinOp::Add | BinOp::Sub => 8,
+                    BinOp::ShiftLeft | BinOp::ShiftRight => 7,
+                    BinOp::BitAnd => 6,
+                    BinOp::BitXor => 5,
+                    BinOp::BitOr => 4,
+                    BinOp::Eq
+                    | BinOp::NotEq
+                    | BinOp::Less
+                    | BinOp::LessEq
+                    | BinOp::Greater
+                    | BinOp::GreaterEq => 3,
+                    BinOp::LogicalAnd => 2,
+                    BinOp::LogicalOr => 1,
+                }
+            }
+            // Not relevant.
+            Operator::Brackets => 0,
+        }
+    }
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
@@ -41,7 +78,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                 }
                 if let Some(Token::LeftBracket) = iter.peek() {
                     // Function call.
-                    operator_stack.push(Token::Identifier(s.clone()));
+                    operator_stack.push(Operator::Call(s.clone()));
                     // Still expecting an operand.
                 } else {
                     // Variable.
@@ -56,7 +93,8 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                         op
                     )));
                 }
-                operator_stack.push(Token::UnOp(op));
+                // No need to pop operators with higher precedence since there aren't any.
+                operator_stack.push(Operator::UnOp(op));
             }
             Token::BinOp(op) => {
                 if state != State::ExpectingOperator {
@@ -66,24 +104,40 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     )));
                 }
                 state = State::ExpectingOperand;
-                // Pop operators with higher precedence from the stack.
-                while let Some(Token::BinOp(op2)) = operator_stack.last() {
-                    if op2.precedence() >= op.precedence() {
-                        let Some(Token::BinOp(op2)) = operator_stack.pop() else { unreachable!(); };
-                        let rhs = operand_stack.pop().unwrap();
-                        let lhs = operand_stack.pop().unwrap();
-                        operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op2));
-                    } else {
+
+                let op = Operator::BinOp(op);
+
+                // Pop operators until we find one with lower precedence (or brackets).
+                while let Some(top_op) = operator_stack.pop() {
+                    if top_op.precedence() < op.precedence() {
+                        operator_stack.push(top_op);
                         break;
                     }
+                    match top_op {
+                        Operator::Brackets => break,
+                        Operator::BinOp(op) => {
+                            let rhs = operand_stack.pop().unwrap();
+                            let lhs = operand_stack.pop().unwrap();
+                            operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                        }
+                        Operator::UnOp(op) => {
+                            let operand = operand_stack.pop().unwrap();
+                            operand_stack.push(Ast::UnOp(Box::new(operand), op));
+                        }
+                        Operator::Call(name) => {
+                            // Function call.
+                            let param = operand_stack.pop().unwrap();
+                            operand_stack.push(Ast::Call(name, Box::new(param)));
+                        }
+                    }
                 }
-                operator_stack.push(Token::BinOp(op));
+                operator_stack.push(op);
             }
             Token::LeftBracket => {
                 if state != State::ExpectingOperand {
                     return Err(ExprError::SyntaxError("unexpected (".to_string()));
                 }
-                operator_stack.push(Token::LeftBracket);
+                operator_stack.push(Operator::Brackets);
             }
             Token::RightBracket => {
                 if state != State::ExpectingOperator {
@@ -92,51 +146,52 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                 state = State::ExpectingOperator;
 
                 // Pop operators until we find a left bracket.
-                while let Some(token) = operator_stack.pop() {
-                    match token {
-                        Token::LeftBracket => break,
-                        Token::BinOp(op) => {
+                while let Some(top_op) = operator_stack.pop() {
+                    match top_op {
+                        Operator::Brackets => break,
+                        Operator::BinOp(op) => {
                             let rhs = operand_stack.pop().unwrap();
                             let lhs = operand_stack.pop().unwrap();
                             operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
-                        Token::UnOp(op) => {
+                        Operator::UnOp(op) => {
                             let operand = operand_stack.pop().unwrap();
                             operand_stack.push(Ast::UnOp(Box::new(operand), op));
                         }
-                        Token::Identifier(name) => {
+                        Operator::Call(name) => {
                             // Function call.
                             let param = operand_stack.pop().unwrap();
                             operand_stack.push(Ast::Call(name, Box::new(param)));
                         }
-                        _ => unreachable!(),
                     }
                 }
             }
         }
     }
 
+    dbg!(&operator_stack);
+    dbg!(&operand_stack);
+
     // Pop operators until the stack is empty.
-    while let Some(token) = operator_stack.pop() {
-        match token {
-            Token::BinOp(op) => {
+    while let Some(top_op) = operator_stack.pop() {
+        match top_op {
+            Operator::BinOp(op) => {
                 let rhs = operand_stack.pop().unwrap();
                 let lhs = operand_stack.pop().unwrap();
                 operand_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
             }
-            Token::UnOp(op) => {
+            Operator::UnOp(op) => {
                 let operand = operand_stack.pop().unwrap();
                 operand_stack.push(Ast::UnOp(Box::new(operand), op));
             }
-            Token::LeftBracket => {
+            Operator::Brackets => {
                 return Err(ExprError::SyntaxError("unmatched (".to_string()));
             }
-            Token::Identifier(name) => {
+            Operator::Call(name) => {
                 // Function call.
                 let param = operand_stack.pop().unwrap();
                 operand_stack.push(Ast::Call(name, Box::new(param)));
             }
-            _ => unreachable!(),
         }
     }
     // The operand stack should now contain a single AST node.
@@ -149,7 +204,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinOp, Context, Val},
+        ast::{BinOp, Val, UnOp},
         tokenise,
     };
 
@@ -173,32 +228,49 @@ mod test {
         );
     }
 
-    struct SimpleContext {}
-
-    impl Context for SimpleContext {
-        fn var(&self, name: &str) -> Option<Val> {
-            match name {
-                "x" => Some(Val::Int(1)),
-                "y" => Some(Val::Int(2)),
-                _ => None,
-            }
-        }
-        fn call(&self, name: &str, param: Val) -> Option<Val> {
-            match name {
-                "inc" => match param {
-                    Val::Int(x) => Some(Val::Int(x + 1)),
-                    _ => None,
-                },
-                _ => None,
-            }
-        }
+    #[test]
+    fn test_simple() {
+        let tokens = tokenise("1 * ~2 + 3").unwrap();
+        let ast = parse(tokens).unwrap();
+        assert_eq!(
+            ast,
+            Ast::BinOp(
+                Box::new(Ast::BinOp(
+                    Box::new(Ast::Literal(Val::Int(1))),
+                    Box::new(Ast::UnOp(Box::new(Ast::Literal(Val::Int(2))), UnOp::BitNot)),
+                    BinOp::Mul
+                )),
+                Box::new(Ast::Literal(Val::Int(3))),
+                BinOp::Add
+            )
+        );
     }
 
     #[test]
-    fn test_evaluation() {
-        let tokens = tokenise("1 + 2 * 3 + inc(4)").unwrap();
+    fn test_call_precedence() {
+        let tokens = tokenise("3 * f(1)").unwrap();
         let ast = parse(tokens).unwrap();
-        let context = SimpleContext {};
-        assert_eq!(ast.evaluate(&context), Ok(Val::Int(1 + 2 * 3 + (4 + 1))));
+        assert_eq!(
+            ast,
+            Ast::BinOp(
+                Box::new(Ast::Literal(Val::Int(3))),
+                Box::new(Ast::Call("f".to_string(), Box::new(Ast::Literal(Val::Int(1))))),
+                BinOp::Mul
+            ),
+        );
+    }
+
+    #[test]
+    fn test_unop_precedence() {
+        let tokens = tokenise("3 * ~(4)").unwrap();
+        let ast = parse(tokens).unwrap();
+        assert_eq!(
+            ast,
+            Ast::BinOp(
+                Box::new(Ast::Literal(Val::Int(3))),
+                Box::new(Ast::UnOp(Box::new(Ast::Literal(Val::Int(4))), UnOp::BitNot)),
+                BinOp::Mul
+            )
+        );
     }
 }
