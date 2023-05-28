@@ -10,16 +10,17 @@ binary_op := '+' | '-' | '*' | '/' | '%' |
              '==' | '!=' | '<' | '>' | '<=' | '>=' |
              '&&' | '||' |
              '&' | '|' | '^'
-unary_op := '!' | '~' | identifier
+unary_op := '!' | '~'
 brackets := '(' atom ')'
 unary := unary_op atom
-atom := brackets | unary | literal
+function_call := itentifier brackets
+atom := brackets | unary | literal | function_call
 expr := atom ( binary_op atom )*
 
 Very standard with two exceptions:
 
 1. There is no unary + or -.
-2. Function calls always take exactly 1 argument and do not require brackets (simialr to functional languages with currying).
+2. Function calls always take exactly 1 argument.
 
 The only supported types are `bool` and `u64`. There is no type coersion.
 

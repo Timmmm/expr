@@ -7,6 +7,7 @@ pub enum Val {
     Bool(bool),
 }
 
+#[derive(PartialEq, Eq, Debug)]
 pub enum Ast {
     BinOp(Box<Ast>, Box<Ast>, BinOp),
     UnOp(Box<Ast>, UnOp),
@@ -73,7 +74,7 @@ impl Ast {
     }
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum BinOp {
     Add,
     Sub,
@@ -97,8 +98,33 @@ pub enum BinOp {
     LogicalOr,
 }
 
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub enum UnOp {
     LogicalNot,
     BitNot,
+}
+
+pub trait Precedence {
+    fn precedence(&self) -> u8;
+}
+
+impl Precedence for BinOp {
+    fn precedence(&self) -> u8 {
+        // Same as Go. https://go.dev/ref/spec#Operators
+        match self {
+            BinOp::LogicalOr => 0,
+            BinOp::LogicalAnd => 1,
+            BinOp::Eq | BinOp::NotEq | BinOp::Less | BinOp::LessEq | BinOp::Greater | BinOp::GreaterEq => 2,
+            BinOp::Add | BinOp::Sub | BinOp::WrappingAdd | BinOp::WrappingSub | BinOp::BitOr | BinOp::BitXor => 3,
+            BinOp::Mul | BinOp::Div | BinOp::Mod | BinOp::BitAnd | BinOp::ShiftLeft | BinOp::ShiftRight => 4,
+        }
+    }
+}
+
+impl Precedence for UnOp {
+    fn precedence(&self) -> u8 {
+        match self {
+            UnOp::LogicalNot | UnOp::BitNot => 5,
+        }
+    }
 }
