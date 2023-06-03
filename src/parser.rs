@@ -1,4 +1,4 @@
-use crate::ast::{Ast, BinOp, UnOp};
+use crate::expr::{Expr, BinOp, UnOp};
 use crate::error::{ExprError, Result};
 use crate::tokeniser::Token;
 
@@ -45,7 +45,7 @@ impl Operator {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
+pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     let mut iter = tokens.into_iter().peekable();
 
     // Parse using the shunting yard algorithm. We also use a state machine
@@ -62,7 +62,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperator;
-                ast_stack.push(Ast::Literal(val));
+                ast_stack.push(Expr::Literal(val));
             }
             Token::Identifier(s) => {
                 if state != State::ExpectingOperand {
@@ -74,7 +74,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                     // Still expecting an operand.
                 } else {
                     // Variable.
-                    ast_stack.push(Ast::Var(s.clone()));
+                    ast_stack.push(Expr::Var(s.clone()));
                     state = State::ExpectingOperator;
                 }
             }
@@ -104,16 +104,16 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                         Operator::BinOp(op) => {
                             let rhs = ast_stack.pop().unwrap();
                             let lhs = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
                             let operand = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::UnOp(Box::new(operand), op));
+                            ast_stack.push(Expr::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
                             let param = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::Call(name, Box::new(param)));
+                            ast_stack.push(Expr::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -138,16 +138,16 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
                         Operator::BinOp(op) => {
                             let rhs = ast_stack.pop().unwrap();
                             let lhs = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
                             let operand = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::UnOp(Box::new(operand), op));
+                            ast_stack.push(Expr::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
                             let param = ast_stack.pop().unwrap();
-                            ast_stack.push(Ast::Call(name, Box::new(param)));
+                            ast_stack.push(Expr::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -161,11 +161,11 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
             Operator::BinOp(op) => {
                 let rhs = ast_stack.pop().unwrap();
                 let lhs = ast_stack.pop().unwrap();
-                ast_stack.push(Ast::BinOp(Box::new(lhs), Box::new(rhs), op));
+                ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
             }
             Operator::UnOp(op) => {
                 let operand = ast_stack.pop().unwrap();
-                ast_stack.push(Ast::UnOp(Box::new(operand), op));
+                ast_stack.push(Expr::UnOp(Box::new(operand), op));
             }
             Operator::Brackets => {
                 return Err(ExprError::UnmatchedLeftBracket);
@@ -173,7 +173,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
             Operator::Call(name) => {
                 // Function call.
                 let param = ast_stack.pop().unwrap();
-                ast_stack.push(Ast::Call(name, Box::new(param)));
+                ast_stack.push(Expr::Call(name, Box::new(param)));
             }
         }
     }
@@ -187,7 +187,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinOp, UnOp, Val},
+        expr::{BinOp, UnOp, Val},
         tokenise,
     };
 
@@ -196,14 +196,14 @@ mod test {
     #[test]
     fn test_parse() {
         let tokens = tokenise("1 + 2 * 3").unwrap();
-        let ast = parse(tokens).unwrap();
+        let expr = parse(tokens).unwrap();
         assert_eq!(
-            ast,
-            Ast::BinOp(
-                Box::new(Ast::Literal(Val::Int(1))),
-                Box::new(Ast::BinOp(
-                    Box::new(Ast::Literal(Val::Int(2))),
-                    Box::new(Ast::Literal(Val::Int(3))),
+            expr,
+            Expr::BinOp(
+                Box::new(Expr::Literal(Val::Int(1))),
+                Box::new(Expr::BinOp(
+                    Box::new(Expr::Literal(Val::Int(2))),
+                    Box::new(Expr::Literal(Val::Int(3))),
                     BinOp::Mul
                 )),
                 BinOp::Add
@@ -214,16 +214,16 @@ mod test {
     #[test]
     fn test_simple() {
         let tokens = tokenise("1 * ~2 + 3").unwrap();
-        let ast = parse(tokens).unwrap();
+        let expr = parse(tokens).unwrap();
         assert_eq!(
-            ast,
-            Ast::BinOp(
-                Box::new(Ast::BinOp(
-                    Box::new(Ast::Literal(Val::Int(1))),
-                    Box::new(Ast::UnOp(Box::new(Ast::Literal(Val::Int(2))), UnOp::BitNot)),
+            expr,
+            Expr::BinOp(
+                Box::new(Expr::BinOp(
+                    Box::new(Expr::Literal(Val::Int(1))),
+                    Box::new(Expr::UnOp(Box::new(Expr::Literal(Val::Int(2))), UnOp::BitNot)),
                     BinOp::Mul
                 )),
-                Box::new(Ast::Literal(Val::Int(3))),
+                Box::new(Expr::Literal(Val::Int(3))),
                 BinOp::Add
             )
         );
@@ -232,14 +232,14 @@ mod test {
     #[test]
     fn test_call_precedence() {
         let tokens = tokenise("3 * f(1)").unwrap();
-        let ast = parse(tokens).unwrap();
+        let expr = parse(tokens).unwrap();
         assert_eq!(
-            ast,
-            Ast::BinOp(
-                Box::new(Ast::Literal(Val::Int(3))),
-                Box::new(Ast::Call(
+            expr,
+            Expr::BinOp(
+                Box::new(Expr::Literal(Val::Int(3))),
+                Box::new(Expr::Call(
                     "f".to_string(),
-                    Box::new(Ast::Literal(Val::Int(1)))
+                    Box::new(Expr::Literal(Val::Int(1)))
                 )),
                 BinOp::Mul
             ),
@@ -249,12 +249,12 @@ mod test {
     #[test]
     fn test_unop_precedence() {
         let tokens = tokenise("3 * ~(4)").unwrap();
-        let ast = parse(tokens).unwrap();
+        let expr = parse(tokens).unwrap();
         assert_eq!(
-            ast,
-            Ast::BinOp(
-                Box::new(Ast::Literal(Val::Int(3))),
-                Box::new(Ast::UnOp(Box::new(Ast::Literal(Val::Int(4))), UnOp::BitNot)),
+            expr,
+            Expr::BinOp(
+                Box::new(Expr::Literal(Val::Int(3))),
+                Box::new(Expr::UnOp(Box::new(Expr::Literal(Val::Int(4))), UnOp::BitNot)),
                 BinOp::Mul
             )
         );

@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::ast::{BinOp, UnOp, Val};
+use crate::expr::{BinOp, UnOp, Val};
 use crate::error::{ExprError, Result};
 
 #[derive(PartialEq, Eq, Debug, Clone)]

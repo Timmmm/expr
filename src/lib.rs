@@ -1,15 +1,15 @@
-mod ast;
+mod expr;
 mod error;
 mod parser;
 mod tokeniser;
 
-pub use ast::{Ast, Context};
+pub use expr::{Expr, Context};
 pub use parser::parse;
 pub use tokeniser::tokenise;
 
 #[cfg(test)]
 mod test {
-    use crate::ast::Val;
+    use crate::expr::Val;
 
     use super::*;
 
@@ -37,16 +37,16 @@ mod test {
     #[test]
     fn test_simple() {
         let tokens = tokenise("4 * inc(2) + 1").unwrap();
-        let ast = parse(tokens).unwrap();
-        let result = ast.evaluate(&SimpleContext {});
+        let expr = parse(tokens).unwrap();
+        let result = expr.evaluate(&SimpleContext {});
         assert_eq!(result, Ok(Val::Int(4 * (2 + 1) + 1)));
     }
 
     #[test]
     fn test_complex() {
         let tokens = tokenise("x + y * 3 + (4 + 1) * inc(2) + 1").unwrap();
-        let ast = parse(tokens).unwrap();
-        let result = ast.evaluate(&SimpleContext {});
+        let expr = parse(tokens).unwrap();
+        let result = expr.evaluate(&SimpleContext {});
         assert_eq!(result, Ok(Val::Int(1 + 2 * 3 + (4 + 1) * (2 + 1) + 1)));
     }
 }

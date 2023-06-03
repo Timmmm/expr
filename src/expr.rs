@@ -18,11 +18,11 @@ impl Display for Val {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum Ast {
-    BinOp(Box<Ast>, Box<Ast>, BinOp),
-    UnOp(Box<Ast>, UnOp),
+pub enum Expr {
+    BinOp(Box<Expr>, Box<Expr>, BinOp),
+    UnOp(Box<Expr>, UnOp),
     Var(String),
-    Call(String, Box<Ast>),
+    Call(String, Box<Expr>),
     Literal(Val),
 }
 
@@ -31,10 +31,10 @@ pub trait Context {
     fn call(&self, name: &str, arg: Val) -> Option<Val>;
 }
 
-impl Ast {
+impl Expr {
     pub fn evaluate(&self, context: &dyn Context) -> Result<Val> {
         match self {
-            Ast::BinOp(a, b, op) => {
+            Expr::BinOp(a, b, op) => {
                 match (a.evaluate(context)?, b.evaluate(context)?) {
                     (Val::Int(a), Val::Int(b)) => {
                         match op {
@@ -86,7 +86,7 @@ impl Ast {
                     (a, b) => Err(ExprError::BinopTypeError(a, b, *op)),
                 }
             }
-            Ast::UnOp(a, op) => match a.evaluate(context)? {
+            Expr::UnOp(a, op) => match a.evaluate(context)? {
                 Val::Int(a) => match op {
                     UnOp::BitNot => Ok(Val::Int(!a)),
                     _ => Err(ExprError::UnopTypeError(Val::Int(a), *op)),
@@ -96,11 +96,11 @@ impl Ast {
                     _ => Err(ExprError::UnopTypeError(Val::Bool(a), *op)),
                 },
             },
-            Ast::Literal(v) => Ok(*v),
-            Ast::Call(func, param) => context
+            Expr::Literal(v) => Ok(*v),
+            Expr::Call(func, param) => context
                 .call(func, param.evaluate(context)?)
                 .ok_or(ExprError::CallError(func.clone())),
-            Ast::Var(name) => context.var(name).ok_or(ExprError::VarError(name.clone())),
+            Expr::Var(name) => context.var(name).ok_or(ExprError::VarError(name.clone())),
         }
     }
 }
@@ -202,37 +202,37 @@ mod test {
 
     #[test]
     fn test_evaluation() {
-        let ast = Ast::BinOp(
-            Box::new(Ast::BinOp(
-                Box::new(Ast::BinOp(
-                    Box::new(Ast::Var("x".to_string())),
-                    Box::new(Ast::BinOp(
-                        Box::new(Ast::Var("y".to_string())),
-                        Box::new(Ast::Literal(Val::Int(3))),
+        let expr = Expr::BinOp(
+            Box::new(Expr::BinOp(
+                Box::new(Expr::BinOp(
+                    Box::new(Expr::Var("x".to_string())),
+                    Box::new(Expr::BinOp(
+                        Box::new(Expr::Var("y".to_string())),
+                        Box::new(Expr::Literal(Val::Int(3))),
                         BinOp::Mul,
                     )),
                     BinOp::Add,
                 )),
-                Box::new(Ast::BinOp(
-                    Box::new(Ast::BinOp(
-                        Box::new(Ast::Literal(Val::Int(4))),
-                        Box::new(Ast::Literal(Val::Int(1))),
+                Box::new(Expr::BinOp(
+                    Box::new(Expr::BinOp(
+                        Box::new(Expr::Literal(Val::Int(4))),
+                        Box::new(Expr::Literal(Val::Int(1))),
                         BinOp::Add,
                     )),
-                    Box::new(Ast::Call(
+                    Box::new(Expr::Call(
                         "inc".to_string(),
-                        Box::new(Ast::Literal(Val::Int(2))),
+                        Box::new(Expr::Literal(Val::Int(2))),
                     )),
                     BinOp::Mul,
                 )),
                 BinOp::Add,
             )),
-            Box::new(Ast::Literal(Val::Int(1))),
+            Box::new(Expr::Literal(Val::Int(1))),
             BinOp::Add,
         );
         let context = SimpleContext {};
         assert_eq!(
-            ast.evaluate(&context),
+            expr.evaluate(&context),
             Ok(Val::Int(1 + 2 * 3 + (4 + 1) * (2 + 1) + 1))
         );
     }
