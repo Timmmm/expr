@@ -10,7 +10,7 @@ enum State {
     ExpectingOperator,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum Operator {
     BinOp(BinOp),
     UnOp(UnOp),
@@ -55,6 +55,27 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
 
     let mut state = State::ExpectingExpr;
 
+    // Process an operation that was popped from the top of the operator stack.
+    // Return true if it was brackets.
+    fn process_op(op: Operator, expr_stack: &mut Vec<Expr>) {
+        match op {
+            Operator::Brackets => {}
+            Operator::BinOp(op) => {
+                let rhs = expr_stack.pop().unwrap();
+                let lhs = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
+            }
+            Operator::UnOp(op) => {
+                let operand = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::UnOp(Box::new(operand), op));
+            }
+            Operator::Call(name) => {
+                let param = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::Call(name, Box::new(param)));
+            }
+        }
+    }
+
     while let Some(token) = iter.next() {
         match token {
             Token::Literal(val) => {
@@ -92,31 +113,17 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                 state = State::ExpectingExpr;
 
                 let op = Operator::BinOp(op);
-
                 // Pop operators until we find one with lower precedence (or brackets).
                 while let Some(top_op) = operator_stack.pop() {
                     if top_op.precedence() < op.precedence() {
-                        // Put it back.
+                        // Put it back. This is the easiest way to deal with the ownership.
                         operator_stack.push(top_op);
                         break;
                     }
-                    match top_op {
-                        Operator::Brackets => break,
-                        Operator::BinOp(op) => {
-                            let rhs = expr_stack.pop().unwrap();
-                            let lhs = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
-                        }
-                        Operator::UnOp(op) => {
-                            let operand = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::UnOp(Box::new(operand), op));
-                        }
-                        Operator::Call(name) => {
-                            // Function call.
-                            let param = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::Call(name, Box::new(param)));
-                        }
+                    if top_op == Operator::Brackets {
+                        break;
                     }
+                    process_op(top_op, &mut expr_stack);
                 }
                 operator_stack.push(op);
             }
@@ -137,23 +144,10 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                     let Some(top_op) = operator_stack.pop() else {
                         return Err(ExprError::UnmatchedRightBracket);
                     };
-                    match top_op {
-                        Operator::Brackets => break,
-                        Operator::BinOp(op) => {
-                            let rhs = expr_stack.pop().unwrap();
-                            let lhs = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
-                        }
-                        Operator::UnOp(op) => {
-                            let operand = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::UnOp(Box::new(operand), op));
-                        }
-                        Operator::Call(name) => {
-                            // Function call.
-                            let param = expr_stack.pop().unwrap();
-                            expr_stack.push(Expr::Call(name, Box::new(param)));
-                        }
+                    if top_op == Operator::Brackets {
+                        break;
                     }
+                    process_op(top_op, &mut expr_stack);
                 }
             }
         }
@@ -161,25 +155,10 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
 
     // Pop operators until the stack is empty.
     while let Some(top_op) = operator_stack.pop() {
-        match top_op {
-            Operator::BinOp(op) => {
-                let rhs = expr_stack.pop().unwrap();
-                let lhs = expr_stack.pop().unwrap();
-                expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
-            }
-            Operator::UnOp(op) => {
-                let operand = expr_stack.pop().unwrap();
-                expr_stack.push(Expr::UnOp(Box::new(operand), op));
-            }
-            Operator::Brackets => {
-                return Err(ExprError::UnmatchedLeftBracket);
-            }
-            Operator::Call(name) => {
-                // Function call.
-                let param = expr_stack.pop().unwrap();
-                expr_stack.push(Expr::Call(name, Box::new(param)));
-            }
+        if top_op == Operator::Brackets {
+            return Err(ExprError::UnmatchedLeftBracket);
         }
+        process_op(top_op, &mut expr_stack);
     }
     // The operand stack should now contain a single expression.
     if expr_stack.len() != 1 {

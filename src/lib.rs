@@ -3,7 +3,7 @@ mod error;
 mod parser;
 mod tokeniser;
 
-pub use expr::{Expr, Context};
+pub use crate::expr::{Expr, Context};
 pub use parser::parse;
 pub use tokeniser::tokenise;
 
