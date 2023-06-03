@@ -4,8 +4,8 @@ use crate::tokeniser::Token;
 
 #[derive(PartialEq, Eq)]
 enum State {
-    // Expecting operand (variable, left bracket, function call, literal).
-    ExpectingOperand,
+    // Expecting expression (variable, left bracket, function call, literal).
+    ExpectingExpr,
     // Expecting binary operator or right bracket.
     ExpectingOperator,
 }
@@ -53,19 +53,19 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     let mut operator_stack = Vec::new();
     let mut expr_stack = Vec::new();
 
-    let mut state = State::ExpectingOperand;
+    let mut state = State::ExpectingExpr;
 
     while let Some(token) = iter.next() {
         match token {
             Token::Literal(val) => {
-                if state != State::ExpectingOperand {
+                if state != State::ExpectingExpr {
                     return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperator;
                 expr_stack.push(Expr::Literal(val));
             }
             Token::Identifier(s) => {
-                if state != State::ExpectingOperand {
+                if state != State::ExpectingExpr {
                     return Err(ExprError::UnexpectedToken(Token::Identifier(s)));
                 }
                 if let Some(Token::LeftBracket) = iter.peek() {
@@ -79,7 +79,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                 }
             }
             Token::UnOp(op) => {
-                if state != State::ExpectingOperand {
+                if state != State::ExpectingExpr {
                     return Err(ExprError::UnexpectedToken(token));
                 }
                 // No need to pop operators with higher precedence since there aren't any.
@@ -89,13 +89,14 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                 if state != State::ExpectingOperator {
                     return Err(ExprError::UnexpectedToken(token));
                 }
-                state = State::ExpectingOperand;
+                state = State::ExpectingExpr;
 
                 let op = Operator::BinOp(op);
 
                 // Pop operators until we find one with lower precedence (or brackets).
                 while let Some(top_op) = operator_stack.pop() {
                     if top_op.precedence() < op.precedence() {
+                        // Put it back.
                         operator_stack.push(top_op);
                         break;
                     }
@@ -120,7 +121,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                 operator_stack.push(op);
             }
             Token::LeftBracket => {
-                if state != State::ExpectingOperand {
+                if state != State::ExpectingExpr {
                     return Err(ExprError::UnexpectedToken(token));
                 }
                 operator_stack.push(Operator::Brackets);
@@ -132,7 +133,10 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                 state = State::ExpectingOperator;
 
                 // Pop operators until we find a left bracket.
-                while let Some(top_op) = operator_stack.pop() {
+                loop {
+                    let Some(top_op) = operator_stack.pop() else {
+                        return Err(ExprError::UnmatchedRightBracket);
+                    };
                     match top_op {
                         Operator::Brackets => break,
                         Operator::BinOp(op) => {
@@ -258,5 +262,12 @@ mod test {
                 BinOp::Mul
             )
         );
+    }
+
+    #[test]
+    fn test_unmatched_right_bracket() {
+        let tokens = tokenise("3 * 4)").unwrap();
+        let expr = parse(tokens);
+        assert_eq!(expr, Err(ExprError::UnmatchedRightBracket));
     }
 }
