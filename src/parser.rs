@@ -51,7 +51,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     // Parse using the shunting yard algorithm. We also use a state machine
     // to check for valid syntax.
     let mut operator_stack = Vec::new();
-    let mut ast_stack = Vec::new();
+    let mut expr_stack = Vec::new();
 
     let mut state = State::ExpectingOperand;
 
@@ -62,7 +62,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                     return Err(ExprError::UnexpectedToken(token));
                 }
                 state = State::ExpectingOperator;
-                ast_stack.push(Expr::Literal(val));
+                expr_stack.push(Expr::Literal(val));
             }
             Token::Identifier(s) => {
                 if state != State::ExpectingOperand {
@@ -74,7 +74,7 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                     // Still expecting an operand.
                 } else {
                     // Variable.
-                    ast_stack.push(Expr::Var(s.clone()));
+                    expr_stack.push(Expr::Var(s.clone()));
                     state = State::ExpectingOperator;
                 }
             }
@@ -102,18 +102,18 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                     match top_op {
                         Operator::Brackets => break,
                         Operator::BinOp(op) => {
-                            let rhs = ast_stack.pop().unwrap();
-                            let lhs = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            let rhs = expr_stack.pop().unwrap();
+                            let lhs = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
-                            let operand = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::UnOp(Box::new(operand), op));
+                            let operand = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
-                            let param = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::Call(name, Box::new(param)));
+                            let param = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -136,18 +136,18 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
                     match top_op {
                         Operator::Brackets => break,
                         Operator::BinOp(op) => {
-                            let rhs = ast_stack.pop().unwrap();
-                            let lhs = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
+                            let rhs = expr_stack.pop().unwrap();
+                            let lhs = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
                         }
                         Operator::UnOp(op) => {
-                            let operand = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::UnOp(Box::new(operand), op));
+                            let operand = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::UnOp(Box::new(operand), op));
                         }
                         Operator::Call(name) => {
                             // Function call.
-                            let param = ast_stack.pop().unwrap();
-                            ast_stack.push(Expr::Call(name, Box::new(param)));
+                            let param = expr_stack.pop().unwrap();
+                            expr_stack.push(Expr::Call(name, Box::new(param)));
                         }
                     }
                 }
@@ -159,29 +159,29 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     while let Some(top_op) = operator_stack.pop() {
         match top_op {
             Operator::BinOp(op) => {
-                let rhs = ast_stack.pop().unwrap();
-                let lhs = ast_stack.pop().unwrap();
-                ast_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
+                let rhs = expr_stack.pop().unwrap();
+                let lhs = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::BinOp(Box::new(lhs), Box::new(rhs), op));
             }
             Operator::UnOp(op) => {
-                let operand = ast_stack.pop().unwrap();
-                ast_stack.push(Expr::UnOp(Box::new(operand), op));
+                let operand = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::UnOp(Box::new(operand), op));
             }
             Operator::Brackets => {
                 return Err(ExprError::UnmatchedLeftBracket);
             }
             Operator::Call(name) => {
                 // Function call.
-                let param = ast_stack.pop().unwrap();
-                ast_stack.push(Expr::Call(name, Box::new(param)));
+                let param = expr_stack.pop().unwrap();
+                expr_stack.push(Expr::Call(name, Box::new(param)));
             }
         }
     }
-    // The operand stack should now contain a single AST node.
-    if ast_stack.len() != 1 {
+    // The operand stack should now contain a single expression.
+    if expr_stack.len() != 1 {
         return Err(ExprError::InvalidExpression);
     }
-    Ok(ast_stack.pop().unwrap())
+    Ok(expr_stack.pop().unwrap())
 }
 
 #[cfg(test)]
