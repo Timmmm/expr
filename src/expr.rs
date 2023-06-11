@@ -26,6 +26,19 @@ pub enum Expr {
     Literal(Val),
 }
 
+impl Display for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            // Brackets are necessary here because of operator precedence.
+            Expr::BinOp(a, b, op) => write!(f, "({} {} {})", a, op, b),
+            Expr::UnOp(a, op) => write!(f, "{}{}", op, a),
+            Expr::Var(s) => write!(f, "{}", s),
+            Expr::Call(s, a) => write!(f, "{}({})", s, a),
+            Expr::Literal(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 pub trait Context {
     fn var(&self, name: &str) -> Option<Val>;
     fn call(&self, name: &str, arg: Val) -> Option<Val>;
